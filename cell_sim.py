@@ -5,7 +5,7 @@ import time
 print_mode=0
 
 board=[]
-s=60 #side length
+s=100 #side length
 
 for i in range(s):
     temp=[]
@@ -29,8 +29,8 @@ base_met=1
 
 
 #food vars
-food_val=20
-food_protein = 1
+food_val=10
+food_protein = 2
 food_gen_amount=2
 
 #gen vars
@@ -51,7 +51,7 @@ def next_name():
 
 class cell:
     global board
-    def __init__(self, x_pos, y_pos, speed_gene=1, protein_syn_gene=1.2, food_store=25, age=0, protein_store=50):
+    def __init__(self, x_pos, y_pos, speed_gene=1.3, protein_syn_gene=1.5, food_store=25000, age=0, protein_store=500, age_res=1):
         try:
             self.name = next_name()
             self.age = age
@@ -62,6 +62,7 @@ class cell:
             self.speed_overflow = 0
             self.x_pos = x_pos
             self.y_pos = y_pos
+            self.age_res=age_res
             global cell_list
             cell_list.append(self.name)
             board[x_pos][y_pos].append(self.name)
@@ -76,7 +77,7 @@ def cell_move_amount(cell):
     cell.speed_overflow+=cell.speed_gene
     move=cell.speed_overflow//1
     cell.speed_overflow=cell.speed_overflow%1
-    cell.food_store-=base_met+(cell.speed_gene*cell.speed_gene*move_dif)
+    cell.food_store-=(base_met*cell.age_res/2)+(cell.speed_gene*cell.speed_gene*move_dif)
     return int(move)
 
 def cell_move_direction(cell):
@@ -135,12 +136,13 @@ def cell_reproduce(cell_c):
         print(selected_move[1]+cell_c.y_pos)
         print("Error: New cell placement")
     food_bal=cell_c.food_store-17500
-    protein_bal=cell_c.protein_store-9990
+    protein_bal=cell_c.protein_store-9750
     cell_c.food_store=round(food_bal/2)
     cell_c.protein_store=round(protein_bal/2)
     m_speed=cell_c.speed_gene+(cell_c.speed_gene*(random.randint(-5, 5)/100))
     m_protein=cell_c.protein_syn_gene+(cell_c.protein_syn_gene*(random.randint(-10, 10)/100))
-    obj = cell(selected_move[0]+cell_c.x_pos,selected_move[1]+cell_c.y_pos, speed_gene=m_speed, protein_syn_gene=m_protein, food_store=round(food_bal/2), protein_store=round(protein_bal/2))
+    m_age_res=cell_c.age_res+(cell_c.age_res*(random.randint(-2, 2)/100))
+    obj = cell(selected_move[0]+cell_c.x_pos,selected_move[1]+cell_c.y_pos, speed_gene=m_speed, protein_syn_gene=m_protein, food_store=round(food_bal/2), protein_store=round(protein_bal/2), age_res=m_age_res)
     cell_obj.append(obj)
     name_to_obj[obj.name]=obj
     if print_mode==1:
@@ -171,7 +173,9 @@ def check_eat(cell):
         elif "fc" in board[cell.x_pos][cell.y_pos]:
             board[cell.x_pos][cell.y_pos].remove("fc")
             cell.food_store+=food_val
-            cell.protein_store+=food_protein/2
+            cell.protein_store+=food_protein*100
+            if print_mode==1:
+                print("Meat Eaten")
     except:
         print("Error: Eat error")
 
@@ -203,35 +207,43 @@ def cell_turn(cell_c):
     movement_points=cell_move_amount(cell_c)
     if cell_c.food_store<0:
         cell_death(cell_c, death_type="Starved")
-    if cell_c.age>5000:
-        coin5=random.randint(0,5000)
-        if coin5==0:
-            cell_death(cell_c, death_type="Old age")
-    if cell_c.age>10000:
-        coin10=random.randint(0,800)
+        return 0
+    # if cell_c.age>5000:
+    #     coin5=random.randint(0,10000)
+    #     if coin5==0:
+    #         cell_death(cell_c, death_type="Old age")
+    elif cell_c.age>25000+(20000*cell_c.age_res):
+        coin10=random.randint(0,8000)
         if coin10==0:
             cell_death(cell_c, death_type="Old age")
-    if cell_c.age>20000:
-        coin20=random.randint(0,400)
+            return 0
+    elif cell_c.age>50000+(20000*cell_c.age_res):
+        coin20=random.randint(0,4000)
         if coin20==0:
             cell_death(cell_c, death_type="Old age")
-    if cell_c.age>40000:
-        coin40=random.randint(0,200)
+            return 0
+    elif cell_c.age>100000+(20000*cell_c.age_res):
+        coin40=random.randint(0,2000)
         if coin40==0:
             cell_death(cell_c, death_type="Old age")
-    if cell_c.age>80000:
-        coin80=random.randint(0,100)
+            return 0
+    elif cell_c.age>200000+(20000*cell_c.age_res):
+        coin80=random.randint(0,1000)
         if coin80==0:
             cell_death(cell_c, death_type="Old age")
+            return 0
     check_eat(cell_c)
     for i in range(movement_points):
         cell_move_direction(cell_c)
         check_eat(cell_c)
     if cell_c.protein_syn_gene>1 and cell_c.food_store>cell_c.food_store-round(((cell_c.protein_syn_gene)*(cell_c.protein_syn_gene)*200)):
         cell_c.food_store-round(((cell_c.protein_syn_gene)*(cell_c.protein_syn_gene)*200))
-        cell_c.protein_store+=round(((cell_c.protein_syn_gene-1)*10))
+        cell_c.protein_store+=round(((cell_c.protein_syn_gene-1)*5))
     if cell_c.food_store>rep_food_rej and cell_c.protein_store>rep_protein_req:
         cell_reproduce(cell_c)
+    if cell_c.age>25000:
+        if cell_c.food_store>rep_food_rej and cell_c.protein_store>rep_protein_req:
+            cell_reproduce(cell_c)
     return 1
 
 def vis_board(close=True):
@@ -257,18 +269,17 @@ def vis_board(close=True):
         plt.close()
 
 #main
-
 gen_init_cells()
-for i in range(500):
+for i in range(2000):
     food_gen()
 vis_board()
 
-for i in range(5000000):
+for i in range(10000000):
     if len(cell_obj)==0:
         break
-    if i%10000==0:
+    if i%100000==0:
         print(".")
-    if i%50000==0:
+    if i%500000==0:
         print("Number of cells: "+str(len(cell_obj)))
     food_gen()
     for obj in cell_obj:
@@ -281,6 +292,7 @@ s_food_store=0
 s_protein_store=0
 s_speed_gene=0
 s_protein_syn_gene=0
+s_age_res=0
 for i in cell_obj:
     print("name: "+str(i.name))
     print("age: "+str(i.age))
@@ -293,6 +305,8 @@ for i in cell_obj:
     s_speed_gene+=i.speed_gene
     print("protein_syn_gene: "+str(i.protein_syn_gene))
     s_protein_syn_gene+=i.protein_syn_gene
+    print("age_res: "+str(i.age_res))
+    s_age_res+=i.age_res
     print("_______________________")
 
 print("XXXXXXXXXXXXXXXXXXXXXXXX")
@@ -301,4 +315,5 @@ print("Avg food_store: " + str(s_food_store/len(cell_obj)))
 print("Avg protein_store: " + str(s_protein_store/len(cell_obj)))
 print("Avg speed_gene: " + str(s_speed_gene/len(cell_obj)))
 print("Avg protein_syn_gene: " + str(s_protein_syn_gene/len(cell_obj)))
+print("Avg age_res: " + str(s_age_res/len(cell_obj)))
 print("XXXXXXXXXXXXXXXXXXXXXXXX")
