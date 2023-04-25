@@ -2,8 +2,10 @@ import random
 from matplotlib import pyplot as plt
 import time
 
+print_mode=0
+
 board=[]
-s=30 #side length
+s=60 #side length
 
 for i in range(s):
     temp=[]
@@ -21,15 +23,18 @@ cell_list=[]
 cell_obj=[]
 name_to_obj={}
 intial_cell=2
-rep_food_rej=1000
+rep_food_rej=20000
+rep_protein_req=10000
+base_met=1
 
 
 #food vars
-food_val=30
-food_gen_amount=3
+food_val=20
+food_protein = 1
+food_gen_amount=2
 
 #gen vars
-move_dif=1
+move_dif=0.5
 
 #name convention 
 namebase="00000"
@@ -46,12 +51,14 @@ def next_name():
 
 class cell:
     global board
-    def __init__(self, x_pos, y_pos, speed_gene=1, food_store=25, age=0):
+    def __init__(self, x_pos, y_pos, speed_gene=1, protein_syn_gene=1.2, food_store=25, age=0, protein_store=50):
         try:
             self.name = next_name()
             self.age = age
             self.food_store = food_store
+            self.protein_store = protein_store
             self.speed_gene = speed_gene
+            self.protein_syn_gene = protein_syn_gene
             self.speed_overflow = 0
             self.x_pos = x_pos
             self.y_pos = y_pos
@@ -65,11 +72,11 @@ class cell:
         
 
 def cell_move_amount(cell):
-    global move_dif
+    global move_dif,base_met
     cell.speed_overflow+=cell.speed_gene
     move=cell.speed_overflow//1
     cell.speed_overflow=cell.speed_overflow%1
-    cell.food_store-=(cell.speed_gene*cell.speed_gene*move_dif)
+    cell.food_store-=base_met+(cell.speed_gene*cell.speed_gene*move_dif)
     return int(move)
 
 def cell_move_direction(cell):
@@ -127,13 +134,17 @@ def cell_reproduce(cell_c):
         print(selected_move[0]+cell_c.x_pos)
         print(selected_move[1]+cell_c.y_pos)
         print("Error: New cell placement")
-    food_bal=cell_c.food_store-750
+    food_bal=cell_c.food_store-17500
+    protein_bal=cell_c.protein_store-9990
     cell_c.food_store=round(food_bal/2)
+    cell_c.protein_store=round(protein_bal/2)
     m_speed=cell_c.speed_gene+(cell_c.speed_gene*(random.randint(-5, 5)/100))
-    obj = cell(selected_move[0]+cell_c.x_pos,selected_move[1]+cell_c.y_pos, speed_gene=m_speed, food_store=round(food_bal/2))
+    m_protein=cell_c.protein_syn_gene+(cell_c.protein_syn_gene*(random.randint(-10, 10)/100))
+    obj = cell(selected_move[0]+cell_c.x_pos,selected_move[1]+cell_c.y_pos, speed_gene=m_speed, protein_syn_gene=m_protein, food_store=round(food_bal/2), protein_store=round(protein_bal/2))
     cell_obj.append(obj)
     name_to_obj[obj.name]=obj
-    print("A cell was born") 
+    if print_mode==1:
+        print("A cell was born") 
 
 
 def gen_init_cells():
@@ -154,17 +165,25 @@ def check_eat(cell):
         if "f" in board[cell.x_pos][cell.y_pos]:
             board[cell.x_pos][cell.y_pos].remove("f")
             cell.food_store+=food_val
+            coin=random.randint(0,999)
+            if coin==0:
+                cell.protein_store+=food_protein
+        elif "fc" in board[cell.x_pos][cell.y_pos]:
+            board[cell.x_pos][cell.y_pos].remove("fc")
+            cell.food_store+=food_val
+            cell.protein_store+=food_protein/2
     except:
         print("Error: Eat error")
 
-def cell_death(cell_c):
+def cell_death(cell_c, death_type="Unknown death"):
     global board,cell_obj
     try:
         board[cell_c.x_pos][cell_c.y_pos].remove("has_cell")
         board[cell_c.x_pos][cell_c.y_pos].remove(cell_c.name)
-        board[cell_c.x_pos][cell_c.y_pos].append("f")
+        board[cell_c.x_pos][cell_c.y_pos].append("fc")
         cell_obj.remove(cell_c)
-        print("A cell has died")
+        if print_mode==1:
+            print("A cell has died"+" ("+str(death_type)+")")
     except:
         print("Error: Cell not at expected location")
         print("Cell Name: "+cell_c.name)
@@ -179,16 +198,39 @@ def cell_death(cell_c):
         return 1
 
 def cell_turn(cell_c):
-    global board,rep_food_rej, s
+    global board,rep_food_rej, s, rep_protein_req
     cell_c.age+=1
     movement_points=cell_move_amount(cell_c)
     if cell_c.food_store<0:
-        cell_death(cell_c)
+        cell_death(cell_c, death_type="Starved")
+    if cell_c.age>5000:
+        coin5=random.randint(0,5000)
+        if coin5==0:
+            cell_death(cell_c, death_type="Old age")
+    if cell_c.age>10000:
+        coin10=random.randint(0,800)
+        if coin10==0:
+            cell_death(cell_c, death_type="Old age")
+    if cell_c.age>20000:
+        coin20=random.randint(0,400)
+        if coin20==0:
+            cell_death(cell_c, death_type="Old age")
+    if cell_c.age>40000:
+        coin40=random.randint(0,200)
+        if coin40==0:
+            cell_death(cell_c, death_type="Old age")
+    if cell_c.age>80000:
+        coin80=random.randint(0,100)
+        if coin80==0:
+            cell_death(cell_c, death_type="Old age")
     check_eat(cell_c)
     for i in range(movement_points):
         cell_move_direction(cell_c)
         check_eat(cell_c)
-    if cell_c.food_store>rep_food_rej:
+    if cell_c.protein_syn_gene>1 and cell_c.food_store>cell_c.food_store-round(((cell_c.protein_syn_gene)*(cell_c.protein_syn_gene)*200)):
+        cell_c.food_store-round(((cell_c.protein_syn_gene)*(cell_c.protein_syn_gene)*200))
+        cell_c.protein_store+=round(((cell_c.protein_syn_gene-1)*10))
+    if cell_c.food_store>rep_food_rej and cell_c.protein_store>rep_protein_req:
         cell_reproduce(cell_c)
     return 1
 
@@ -200,8 +242,10 @@ def vis_board(close=True):
         for e in range(s):
             if "f" in board[i][e] and not "has_cell" in board[i][e]:
                 temp.append(5)
-            elif "has_cell" in board[i][e]:
+            elif "fc" in board[i][e] and not "has_cell" in board[i][e]:
                 temp.append(10)
+            elif "has_cell" in board[i][e]:
+                temp.append(15)
             else:
                 temp.append(0)
         vis.append(temp)
@@ -215,42 +259,46 @@ def vis_board(close=True):
 #main
 
 gen_init_cells()
-for i in range(30):
+for i in range(500):
     food_gen()
 vis_board()
 
-for i in range(25000):
-    # if i%10==0:
-    #     print(".")
+for i in range(5000000):
+    if len(cell_obj)==0:
+        break
+    if i%10000==0:
+        print(".")
+    if i%50000==0:
+        print("Number of cells: "+str(len(cell_obj)))
     food_gen()
     for obj in cell_obj:
         x=cell_turn(obj)
-        if x==0:
-            break
-    if x==0:
-        break
 
 vis_board(False)
 
 s_age=0
 s_food_store=0
+s_protein_store=0
 s_speed_gene=0
+s_protein_syn_gene=0
 for i in cell_obj:
     print("name: "+str(i.name))
     print("age: "+str(i.age))
     s_age+=i.age
     print("food_store: "+str(i.food_store))
     s_food_store+=i.food_store
+    print("protein_store: "+str(i.protein_store))
+    s_protein_store+=i.protein_store
     print("speed_gene: "+str(i.speed_gene))
     s_speed_gene+=i.speed_gene
+    print("protein_syn_gene: "+str(i.protein_syn_gene))
+    s_protein_syn_gene+=i.protein_syn_gene
     print("_______________________")
 
 print("XXXXXXXXXXXXXXXXXXXXXXXX")
 print("Avg age: " + str(s_age/len(cell_obj)))
 print("Avg food_store: " + str(s_food_store/len(cell_obj)))
+print("Avg protein_store: " + str(s_protein_store/len(cell_obj)))
 print("Avg speed_gene: " + str(s_speed_gene/len(cell_obj)))
+print("Avg protein_syn_gene: " + str(s_protein_syn_gene/len(cell_obj)))
 print("XXXXXXXXXXXXXXXXXXXXXXXX")
-
-
-
-
